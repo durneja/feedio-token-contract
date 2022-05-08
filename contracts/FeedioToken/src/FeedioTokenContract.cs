@@ -17,9 +17,6 @@ namespace FeedioTokenContract
     [ManifestExtra("Description", "Token contract for feedio to allow subscription access to price feeds")]
     [ContractPermission("*", "onNEP17Payment")]
     [ContractPermission("*", "onNEP11Payment")]
-    [ContractPermission("*", "transfer")]
-    [ContractPermission("*", "mint")]
-    [SupportedStandards("NEP-17")]
     public class FeedioTokenContract : SmartContract
     {
         private static Transaction Tx => (Transaction) Runtime.ScriptContainer;
@@ -30,7 +27,7 @@ namespace FeedioTokenContract
         [DisplayName("Transfer")]
         public static event OnTransferDelegate OnTransfer;
 
-         protected const byte Prefix_TotalSupply = 0x02;
+        protected const byte Prefix_TotalSupply = 0x02;
         protected const byte Prefix_TokenId = 0x02;
         protected const byte Prefix_Token = 0x03;
         protected const byte Prefix_AccountToken = 0x04;
@@ -47,7 +44,8 @@ namespace FeedioTokenContract
             public string Name;
             public ByteString TokenId;
             public string Image;
-            public string TokenURI;
+            public ulong SubscriptionExpiry;
+
         }
 
         public byte Decimals() => 0;
@@ -89,9 +87,9 @@ namespace FeedioTokenContract
             Map<string, object> map = new();
             map["name"] = token.Name;
             map["owner"] = token.Owner;
-            map["tokenURI"] = token.TokenURI;
             map["image"] = token.Image;
             map["tokenId"] = token.TokenId;
+            map["tokenSubscriptionExpiry"] = token.SubscriptionExpiry;
 
             return map;
         }
@@ -168,23 +166,33 @@ namespace FeedioTokenContract
             {
                 BigInteger mintFee = GetMintFee();
                 if (amount < mintFee) throw new Exception("Not enough GAS");
-                Mint(from);
+                
+                BigInteger countOfPassOwned = BalanceOf(from);
+                BigInteger multiples = amount / GetMintFee();
+                if (countOfPassOwned == 0) {
+                    Mint(from, multiples);                    
+                } else {
+                    var iterator = TokensOf(from);      
+                    if (iterator.Next())
+                    {
+                        StorageMap tokenMap = new(Storage.CurrentContext, Prefix_Token);
+                        ByteString tokenId = (ByteString) iterator.Value;
+                        FeedioTokenState token = (FeedioTokenState)StdLib.Deserialize(tokenMap[tokenId]);
+                        if (token.SubscriptionExpiry < Runtime.Time) {
+                            token.SubscriptionExpiry = Runtime.Time + (ulong) (multiples * 2592000);
+                        } else {
+                            token.SubscriptionExpiry = token.SubscriptionExpiry + (ulong) (multiples * 2592000);                            
+                        }
+
+                        tokenMap[tokenId] = StdLib.Serialize(token);
+                    }
+                }
             }
         }
 
-        public static void OwnerMint() 
+        public static void Mint(UInt160 account, BigInteger multiple)
         {
-            if (!VerifyOwner()) { throw new Exception("Not authorized for executing this method");}
-            
-            StorageMap configMap = new(Storage.CurrentContext, Prefix_Config);
-            UInt160 owner = (UInt160) configMap.Get(Prefix_Config_Owner);
-            Mint(owner);
-
-        }
-
-        public static void Mint(UInt160 account)
-        {
-            if(!Runtime.CheckWitness(account)) {throw new Exception("Not authorized for executing this method");};
+            if (VerifyOwner()) throw new Exception("Only owner can mint directly. Transfer GAS based on the price to mint pass.");
             if (DidReachMaxSupply()) throw new Exception("All the tokens have been minted.");
             if (!GetMintActiveStatus()) throw new Exception("Minting is currently not active");
                        
@@ -194,10 +202,10 @@ namespace FeedioTokenContract
             ByteString tokenId = (ByteString)TotalSupply();
             FeedioTokenState token = new FeedioTokenState();
             token.Owner = account;
-            token.Name = "Feedio Pass";
+            token.Name = "Feedio Access Pass #" + tokenId;
             token.TokenId = tokenId;
-            token.Image = "";
-            token.TokenURI = "";
+            token.Image = "https://i.postimg.cc/KzdnVfT4/FEEDIO-ACCESS-PASS-1.png";
+            token.SubscriptionExpiry = Runtime.Time + (ulong) (multiple * 2592000);
 
             tokenMap[tokenId] = StdLib.Serialize(token);
             
@@ -255,7 +263,7 @@ namespace FeedioTokenContract
             GAS.Transfer(Runtime.ExecutingScriptHash, owner, amount);
         }
 
-        private static BigInteger GetMintFee()
+        public static BigInteger GetMintFee()
         {
             StorageMap configMap = new(Storage.CurrentContext, Prefix_Config);
             BigInteger mintFee = (BigInteger)configMap.Get(Prefix_Config_MintFee);
@@ -283,6 +291,13 @@ namespace FeedioTokenContract
             StorageMap configMap = new(Storage.CurrentContext, Prefix_Config);
             BigInteger mintActive = (BigInteger)configMap.Get(Prefix_Config_MintingActive);
             return (mintActive == 1);
+        }
+
+        public static void TransferContractGAS(BigInteger amount, UInt160 to) 
+        {
+            if (!VerifyOwner()) { throw new Exception("Not authorized for executing this method");}
+
+            GAS.Transfer(Runtime.ExecutingScriptHash, to, amount);
         }
 
         private static bool DidReachMaxSupply() {
@@ -328,7 +343,7 @@ namespace FeedioTokenContract
             StorageMap configMap = new(Storage.CurrentContext, Prefix_Config);
             configMap.Put(Prefix_Config_Owner, (UInt160) Tx.Sender);
             configMap.Put(Prefix_Config_MaxSupply, 9999);
-            configMap.Put(Prefix_Config_MintFee, 400000000);
+            configMap.Put(Prefix_Config_MintFee, 3000000000);
             configMap.Put(Prefix_Config_MintingActive, 0);
         }
 

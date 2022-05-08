@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net5.0</TargetFramework>
+    <TargetFramework>net6.0</TargetFramework>
     <NeoContractManifestPath>..\src\bin\sc\FeedioTokenContract.manifest.json</NeoContractManifestPath>
     <NeoTestPackagesVersion>1.0.40-preview</NeoTestPackagesVersion>
     <RootNamespace>FeedioTokenTests</RootNamespace>
@@ -56,11 +56,11 @@
     AfterTargets="Build" 
     Inputs="$(MSBuildProjectFullPath);@(Compile);" 
     Outputs="$(ProjectDir)/bin/FeedioTokenTests.neo-express">
-    <Exec WorkingDirectory="$(ProjectDir)" Command="dotnet neoxp create -f bin/FeedioTokenTests.neo-express" />
+    <!-- <Exec WorkingDirectory="$(ProjectDir)" Command="dotnet neoxp create -f bin/FeedioTokenTests.neo-express" />
     <Exec WorkingDirectory="$(ProjectDir)" Command="dotnet neoxp wallet create -i bin/FeedioTokenTests.neo-express owner" />
     <Exec WorkingDirectory="$(ProjectDir)" Command="dotnet neoxp wallet create -i bin/FeedioTokenTests.neo-express alice" />
     <Exec WorkingDirectory="$(ProjectDir)" Command="dotnet neoxp wallet create -i bin/FeedioTokenTests.neo-express bob" />
-    <Exec WorkingDirectory="$(ProjectDir)" Command="dotnet neoxp batch -i bin/FeedioTokenTests.neo-express setup-test-chain.batch" />
+    <Exec WorkingDirectory="$(ProjectDir)" Command="dotnet neoxp batch -i bin/FeedioTokenTests.neo-express setup-test-chain.batch" /> -->
   </Target>
 
 </Project>
