@@ -160,6 +160,21 @@ namespace FeedioTokenContract
             return byteStringArr;
         }
 
+        public bool AccessPresentAndValid(UInt160 owner)
+        {
+            List<object> tokens=  ListTokensOf(owner); 
+            if (!(tokens.Count > 0)) return false;
+
+            string tokenId = (ByteString) tokens[0];
+            Map<string, object> propertiesMap = Properties(tokenId);
+            ulong expiryTime = (ulong) propertiesMap["tokenSubscriptionExpiry"];
+            if (expiryTime < Runtime.Time) {
+                return false;
+            }
+
+            return true;
+        }
+
         public static void OnNEP17Payment(UInt160 from, BigInteger amount, object data)
         {
             if (Runtime.CallingScriptHash == GAS.Hash)
@@ -179,9 +194,9 @@ namespace FeedioTokenContract
                         ByteString tokenId = (ByteString) iterator.Value;
                         FeedioTokenState token = (FeedioTokenState)StdLib.Deserialize(tokenMap[tokenId]);
                         if (token.SubscriptionExpiry < Runtime.Time) {
-                            token.SubscriptionExpiry = Runtime.Time + (ulong) (multiples * 2592000);
+                            token.SubscriptionExpiry = Runtime.Time + (ulong) (multiples * 2592000000);
                         } else {
-                            token.SubscriptionExpiry = token.SubscriptionExpiry + (ulong) (multiples * 2592000);                            
+                            token.SubscriptionExpiry = token.SubscriptionExpiry + (ulong) (multiples * 2592000000);                            
                         }
 
                         tokenMap[tokenId] = StdLib.Serialize(token);
@@ -192,7 +207,7 @@ namespace FeedioTokenContract
 
         public static void Mint(UInt160 account, BigInteger multiple)
         {
-            if (VerifyOwner()) throw new Exception("Only owner can mint directly. Transfer GAS based on the price to mint pass.");
+            if (!VerifyOwner()) throw new Exception("Only owner can mint directly. Transfer GAS based on the price to mint pass.");
             if (DidReachMaxSupply()) throw new Exception("All the tokens have been minted.");
             if (!GetMintActiveStatus()) throw new Exception("Minting is currently not active");
                        
@@ -205,7 +220,7 @@ namespace FeedioTokenContract
             token.Name = "Feedio Access Pass #" + tokenId;
             token.TokenId = tokenId;
             token.Image = "https://i.postimg.cc/KzdnVfT4/FEEDIO-ACCESS-PASS-1.png";
-            token.SubscriptionExpiry = Runtime.Time + (ulong) (multiple * 2592000);
+            token.SubscriptionExpiry = Runtime.Time + (ulong) (multiple * 2592000000);
 
             tokenMap[tokenId] = StdLib.Serialize(token);
             
